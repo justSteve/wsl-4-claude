@@ -1,0 +1,29 @@
+name: Validate Environment Setup
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Check script permissions
+        run: |
+          chmod +x ./setup.sh
+          chmod +x ./scripts/*.sh
+          
+      - name: Validate script syntax
+        run: |
+          for script in ./scripts/*.sh; do
+            bash -n "$script" || exit 1
+          done
+          
+      - name: Check for sensitive information
+        run: |
+          ! grep -r "ANTHROPIC_API_KEY=[^your]" --include="*.sh" --include="*.env" .
+          ! grep -r "GITHUB_TOKEN=[^your]" --include="*.sh" --include="*.env" .

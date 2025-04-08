@@ -1,0 +1,20 @@
+# Environment variables and secrets
+.env
+*.env
+!*.example
+
+# Personal configuration files
+.vscode/
+.idea/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*~
+.DS_Store
+
+# WSL specific
+*.swp
