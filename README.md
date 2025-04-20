@@ -1,6 +1,6 @@
-# Claude WSL Environment
+# wsl-4-claude
 
-A "best known configuration" for WSL environments optimized for running Claude Code with GitHub integration.
+A best known configuration for WSL environments optimized for Claude Code and GitHub integration
 
 ## Overview
 
@@ -15,6 +15,7 @@ This project provides a standardized, well-tested WSL environment specifically d
 - **Credential Management**: Separate dev/prod environments with secure credential handling
 - **Cross-Platform Support**: Scripts for both Windows and Linux environments
 - **Comprehensive Documentation**: Detailed guides for all components
+- **Secure Configuration**: Separation of code and sensitive credentials
 
 ## Quick Start
 
@@ -23,49 +24,70 @@ This project provides a standardized, well-tested WSL environment specifically d
 - Windows 10 version 2004+ or Windows 11
 - Admin access to your machine
 - An Anthropic account with Claude API access
+- Python 3.6 or higher
 
 ### Installation
 
 1. Clone this repository:
+
    ```
-   git clone https://github.com/yourusername/claude-wsl-env.git
-   cd claude-wsl-env
+   git clone https://github.com/yourusername/wsl-4-claude.git
+   cd wsl-4-claude
    ```
 
-2. Run the setup script:
+2. Prepare the configuration (this will prompt for necessary credentials):
+
    ```
+   chmod +x scripts/prepare-config.sh
+   ./scripts/prepare-config.sh
+   ```
+
+3. Run the setup script:
+
+   ```
+   chmod +x setup.sh
    ./setup.sh
    ```
 
-3. Follow the on-screen prompts to complete the installation.
+4. Follow the on-screen prompts to complete the installation.
 
 ## Configuration
 
-After installation, you'll need to configure your credentials:
+The project uses a secure configuration approach that separates sensitive information from the code:
 
-1. For development:
-   ```
-   cp config/dev.env.example config/.dev.env
-   ```
-   Edit `.dev.env` with your development API keys
+1. **Secrets Management**: All sensitive information is stored in `~/secrets/secrets.json`
+2. **Configuration Generation**: Python scripts generate the necessary config files
+3. **Logging**: All operations are logged for easy troubleshooting
 
-2. For production:
-   ```
-   cp config/prod.env.example config/.prod.env
-   ```
-   Edit `.prod.env` with your production API keys
+### Managing Secrets
 
-3. Run the credential setup:
-   ```
-   ./scripts/05-win-credentials.ps1 dev  # For Windows
-   ./scripts/06-lx-credentials.sh dev    # For Linux/WSL
-   ```
+You can update your secrets:
+
+```bash
+python3 scripts/python/generate_config.py --update-secret github_token your-new-token
+```
+
+Or run the interactive configuration:
+
+```bash
+python3 scripts/python/generate_config.py --interactive
+```
+
+### Environment Types
+
+The system supports different environment types (dev/prod):
+
+```bash
+# Configure development environment
+./scripts/06-lx-credentials.sh dev
+
+# Configure production environment
+./scripts/06-lx-credentials.sh prod
+```
 
 ## Documentation
 
-- [Usage Guide](docs/USAGE.md): Detailed usage instructions
-- [Credential Management](docs/CREDENTIALS.md): How to manage your API keys
-- [Troubleshooting](docs/TROUBLESHOOTING.md): Common issues and solutions
+See the `scripts/python/README.md` file for detailed information about the configuration system.
 
 ## Contributing
 

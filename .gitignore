@@ -3,6 +3,15 @@
 *.env
 !*.example
 
+# Secrets directory
+/secrets/
+*/secrets/
+**/secrets/
+~/secrets/
+
+# Configuration files with sensitive data
+/config/*.json
+
 # Personal configuration files
 .vscode/
 .idea/

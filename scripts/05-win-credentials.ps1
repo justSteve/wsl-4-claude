@@ -119,7 +119,7 @@ function Update-EnvFile {
 # Function to store credential in Windows Credential Manager
 function Set-WindowsCredential {
     param(
-        [string]$credentialName,
+        [SecureString]$credentialName,
         [string]$username,
         [string]$secret
     )

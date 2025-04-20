@@ -73,19 +73,11 @@ fi
 
 # Set up time synchronization with Windows
 echo "Setting up time synchronization..."
-# First, install the util-linux package which contains hwclock
-install_if_needed "util-linux"
-
-# Only add the hwclock command to bashrc if the command exists
-if command -v hwclock &> /dev/null; then
-    if ! grep -q "hwclock" ~/.bashrc; then
-        echo "# Sync time with Windows" >> ~/.bashrc
-        echo "if [ -f /proc/sys/fs/binfmt_misc/WSLInterop ]; then" >> ~/.bashrc
-        echo "    (sudo hwclock -s || true) &> /dev/null" >> ~/.bashrc
-        echo "fi" >> ~/.bashrc
-    fi
-else
-    echo -e "${YELLOW}Warning: hwclock command not found. Skipping time synchronization setup.${NC}"
+if ! grep -q "hwclock" ~/.bashrc; then
+    echo "# Sync time with Windows" >> ~/.bashrc
+    echo "if [ -f /proc/sys/fs/binfmt_misc/WSLInterop ]; then" >> ~/.bashrc
+    echo "    sudo hwclock -s" >> ~/.bashrc
+    echo "fi" >> ~/.bashrc
 fi
 
 # Configure .wslconfig in Windows home if it doesn't exist
