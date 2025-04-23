@@ -1,8 +1,40 @@
 #!/bin/bash
 #
-# Git and GitHub configuration script
-# This script sets up Git and GitHub integration
-# Updated to use JSON config files when available
+# WSL4CLAUDE - Git and GitHub Configuration
+# =========================================
+# MODIFIABLE: YES - This script can be run independently to configure Git settings
+# COMPONENT: Git and GitHub Integration
+# DEPENDS: Git installation
+#
+# This script configures Git with user information, sets up SSH keys for GitHub,
+# creates helpful aliases, and establishes standard configuration settings.
+#
+# USAGE:
+#   As standalone:  ./03-git-config.sh [--help] [--update]
+#   In setup chain: Called by setup.sh in sequence
+#
+# OPTIONS:
+#   --help    Show this help message
+#   --update  Update existing configuration instead of creating new
+
+# Process command-line arguments
+if [[ "$1" == "--help" ]]; then
+    echo "WSL4CLAUDE - Git and GitHub Configuration"
+    echo "Usage: ./03-git-config.sh [--help] [--update]"
+    echo ""
+    echo "Options:"
+    echo "  --help    Show this help message"
+    echo "  --update  Update existing configuration instead of creating new"
+    echo ""
+    echo "This script can be run independently to configure Git and GitHub settings,"
+    echo "or as part of the overall WSL environment setup chain."
+    exit 0
+fi
+
+UPDATE_MODE=false
+if [[ "$1" == "--update" ]]; then
+    UPDATE_MODE=true
+fi
 
 set -e  # Exit immediately if a command exits with a non-zero status
 
@@ -74,6 +106,12 @@ prompt_if_empty() {
         fi
     fi
     
+    # If in update mode and the value is already set, don't prompt
+    if [[ "$UPDATE_MODE" == true ]] && [ ! -z "$var_value" ]; then
+        echo "Using existing $var_name: $var_value"
+        return
+    fi
+    
     # Prompt user if still empty
     if [ -z "$var_value" ]; then
         read -p "$prompt_text: " input
@@ -106,7 +144,7 @@ if [ ! -f "$ENV_FILE" ]; then
     else
         touch "$ENV_FILE"
     fi
-}
+fi
 
 # Create JSON config file if it doesn't exist
 if [ ! -f "$JSON_CONFIG" ]; then
@@ -193,6 +231,12 @@ if [ "$GENERATE_SSH_KEY" = "true" ]; then
         read -n 1 -s
     else
         echo -e "${GREEN}SSH key already exists at $SSH_KEY_PATH.${NC}"
+        
+        if [[ "$UPDATE_MODE" == true ]]; then
+            echo "Ensuring SSH key is added to ssh-agent..."
+            eval "$(ssh-agent -s)"
+            ssh-add "$SSH_KEY_PATH" 2>/dev/null || true
+        fi
     fi
 
     # Test GitHub SSH connection
@@ -282,6 +326,11 @@ EOL
         echo -e "${GREEN}Global .gitignore created and configured.${NC}"
     else
         echo -e "${GREEN}Global .gitignore already exists at $GLOBAL_GITIGNORE.${NC}"
+        
+        if [[ "$UPDATE_MODE" == true ]]; then
+            # Ensure the global gitignore is properly configured in Git
+            git config --global core.excludesfile "$GLOBAL_GITIGNORE"
+        fi
     fi
 else
     echo "Global gitignore setup skipped (disabled in config)."
@@ -512,5 +561,28 @@ else
     echo "GitHub templates setup skipped (disabled in config)."
 fi
 
+# Create a sentinel file indicating this component has been configured
+mkdir -p "$HOME/.wsl4claude"
+touch "$HOME/.wsl4claude/.git_configured"
+
 echo -e "${GREEN}Git and GitHub configuration complete!${NC}"
-exit 0
+
+# Function to be used when script is sourced by the main setup
+git_config_status() {
+    if [[ -f "$HOME/.wsl4claude/.git_configured" ]]; then
+        echo "Git and GitHub: Configured"
+        return 0
+    else
+        echo "Git and GitHub: Not configured"
+        return 1
+    fi
+}
+
+# This ensures the script can both run standalone and be sourced
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    # Script is being run directly
+    exit 0
+else
+    # Script is being sourced - export the status function
+    export -f git_config_status
+fi

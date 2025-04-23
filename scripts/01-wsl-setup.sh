@@ -1,7 +1,40 @@
 #!/bin/bash
 #
-# WSL base configuration script
-# This script configures the WSL environment with basic settings
+# WSL4CLAUDE - Base WSL Environment Configuration
+# ==============================================
+# MODIFIABLE: YES - This script can be run independently to configure WSL environment
+# COMPONENT: WSL Base Setup
+# DEPENDS: WSL installation
+#
+# This script configures the base WSL environment with essential settings,
+# including locales, time synchronization, shell improvements, and directory structure.
+#
+# USAGE:
+#   As standalone:  ./01-wsl-setup.sh [--help] [--update]
+#   In setup chain: Called by setup.sh in sequence
+#
+# OPTIONS:
+#   --help    Show this help message
+#   --update  Update existing configuration instead of creating new
+
+# Process command-line arguments
+if [[ "$1" == "--help" ]]; then
+    echo "WSL4CLAUDE - Base WSL Environment Configuration"
+    echo "Usage: ./01-wsl-setup.sh [--help] [--update]"
+    echo ""
+    echo "Options:"
+    echo "  --help    Show this help message"
+    echo "  --update  Update existing configuration instead of creating new"
+    echo ""
+    echo "This script can be run independently to configure the base WSL environment,"
+    echo "or as part of the overall WSL environment setup chain."
+    exit 0
+fi
+
+UPDATE_MODE=false
+if [[ "$1" == "--update" ]]; then
+    UPDATE_MODE=true
+fi
 
 set -e  # Exit immediately if a command exits with a non-zero status
 
@@ -92,15 +125,15 @@ fi
 WIN_HOME=$(wslpath "$(wslvar USERPROFILE)")
 WSLCONFIG_PATH="$WIN_HOME/.wslconfig"
 
-if [ ! -f "$WSLCONFIG_PATH" ]; then
-    echo "Creating .wslconfig in Windows home directory..."
+if [ ! -f "$WSLCONFIG_PATH" ] || [ "$UPDATE_MODE" = true ]; then
+    echo "Creating/updating .wslconfig in Windows home directory..."
     cat > "$WSLCONFIG_PATH" << 'EOL'
 [wsl2]
 memory=8GB
 processors=4
 localhostForwarding=true
 EOL
-    echo -e "${GREEN}.wslconfig created in Windows home directory.${NC}"
+    echo -e "${GREEN}.wslconfig created/updated in Windows home directory.${NC}"
     echo -e "${YELLOW}Note: You may need to restart WSL for these settings to take effect.${NC}"
 else
     echo -e "${YELLOW}.wslconfig already exists in Windows home directory. Skipping creation.${NC}"
@@ -119,6 +152,13 @@ if [ ! -d "$HOME/.oh-my-zsh" ]; then
     echo -e "${GREEN}Oh My Zsh installed successfully.${NC}"
 else
     echo -e "${GREEN}Oh My Zsh is already installed.${NC}"
+    
+    if [[ "$UPDATE_MODE" == true ]]; then
+        echo "Updating Oh My Zsh..."
+        cd "$HOME/.oh-my-zsh"
+        git pull
+        cd - > /dev/null
+    fi
 fi
 
 # Add some useful aliases to .zshrc if they don't already exist
@@ -183,8 +223,8 @@ mkdir -p "$HOME/projects/github"
 mkdir -p "$HOME/projects/claude"
 
 # Create an automatic message when opening terminal
-if [ ! -f "$HOME/.welcome_message.sh" ]; then
-    echo "Creating welcome message script..."
+if [ ! -f "$HOME/.welcome_message.sh" ] || [ "$UPDATE_MODE" = true ]; then
+    echo "Creating/updating welcome message script..."
     cat > "$HOME/.welcome_message.sh" << 'EOL'
 #!/bin/bash
 
@@ -243,6 +283,29 @@ if [ -f "$HOME/.zshrc" ] && [ ! -f "$HOME/.zshrc.orig" ]; then
     cp "$HOME/.zshrc" "$HOME/.zshrc.orig"
 fi
 
+# Create a sentinel file indicating this component has been configured
+mkdir -p "$HOME/.wsl4claude"
+touch "$HOME/.wsl4claude/.wsl_base_configured"
+
 echo -e "${GREEN}WSL base configuration complete!${NC}"
 echo -e "${YELLOW}Note: Some changes may require restarting your terminal or WSL.${NC}"
-exit 0
+
+# Function to be used when script is sourced by the main setup
+wsl_setup_status() {
+    if [[ -f "$HOME/.wsl4claude/.wsl_base_configured" ]]; then
+        echo "WSL Base: Configured"
+        return 0
+    else
+        echo "WSL Base: Not configured"
+        return 1
+    fi
+}
+
+# This ensures the script can both run standalone and be sourced
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    # Script is being run directly
+    exit 0
+else
+    # Script is being sourced - export the status function
+    export -f wsl_setup_status
+fi

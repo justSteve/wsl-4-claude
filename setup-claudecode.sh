@@ -2,7 +2,7 @@
 #
 # Claude Code Setup Manager
 # Simple wrapper script to access the main setup script
-
+./config
 # Define colors for output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'

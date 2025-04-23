@@ -1,16 +1,16 @@
 #!/bin/bash
 #
-# WSL4CLAUDE - Claude Code Installation and Configuration
+# WSL4CLAUDE - Claude Code Installation and Configuration with NVM
 # ===========================================================
 # MODIFIABLE: YES - This script can be run independently to install or update Claude Code
-# COMPONENT: Claude Code Setup
-# DEPENDS: Node.js, npm
+# COMPONENT: Claude Code Setup with NVM-based Node.js
+# DEPENDS: Node.js via NVM (installed by node-nvm-install.sh)
 #
-# This script installs and configures Claude Code CLI with improvements for
-# WSL version detection and Node.js path identification
+# This script installs and configures Claude Code CLI using NVM-managed Node.js
+# to avoid conflicts with Windows Node.js installations
 #
 # USAGE:
-#   As standalone:  ./04-claude-setup.sh [--help] [--update]
+#   As standalone:  ./04-claude-setup-nvm.sh [--help] [--update]
 #   In setup chain: Called by setup.sh in sequence
 #
 # OPTIONS:
@@ -19,15 +19,15 @@
 
 # Process command-line arguments
 if [[ "$1" == "--help" ]]; then
-    echo "WSL4CLAUDE - Claude Code Installation and Configuration"
-    echo "Usage: ./04-claude-setup.sh [--help] [--update]"
+    echo "WSL4CLAUDE - Claude Code Installation and Configuration with NVM"
+    echo "Usage: ./04-claude-setup-nvm.sh [--help] [--update]"
     echo ""
     echo "Options:"
     echo "  --help    Show this help message"
     echo "  --update  Update existing configuration instead of creating new"
     echo ""
-    echo "This script is a fixed version that properly handles WSL version detection"
-    echo "and Node.js path identification issues."
+    echo "This script installs Node.js using NVM first, then installs Claude Code"
+    echo "to ensure a clean environment isolated from Windows Node.js."
     exit 0
 fi
 
@@ -45,27 +45,7 @@ YELLOW='\033[0;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}Setting up Claude Code...${NC}"
-
-# Check WSL version - this is where the fix is applied
-echo "Checking WSL version..."
-WSL_VERSION=$(uname -r | grep -o "WSL2" || echo "WSL1")
-if [[ "$WSL_VERSION" == "WSL1" ]]; then
-    echo -e "${YELLOW}WARNING: You appear to be running WSL 1, but WSL 2 is recommended.${NC}"
-    echo "The script will continue, but some features may not work correctly."
-    echo "For best results, consider upgrading to WSL 2 using these commands in PowerShell:"
-    echo "  wsl --set-default-version 2"
-    echo "  wsl --set-version Ubuntu 2"
-    
-    # Ask to continue
-    read -p "Continue with WSL 1? (y/n): " continue_wsl1
-    if [[ ! $continue_wsl1 =~ ^[Yy]$ ]]; then
-        echo "Setup aborted. Please upgrade to WSL 2 and try again."
-        exit 1
-    fi
-else
-    echo -e "${GREEN}WSL 2 detected. Proceeding with setup...${NC}"
-fi
+echo -e "${BLUE}Setting up Claude Code with NVM...${NC}"
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -103,29 +83,6 @@ get_json_value() {
     fi
 }
 
-# Function to update a key-value pair in the JSON file
-update_json_file() {
-    local key=$1
-    local value=$2
-    local file=$3
-    
-    # Check if jq is installed
-    if command -v jq &> /dev/null; then
-        # Create a temporary file with the updated value
-        jq ".$key = \"$value\"" "$file" > "$file.tmp"
-        mv "$file.tmp" "$file"
-    else
-        # Fallback if jq not available (less reliable)
-        if grep -q "\"$key\":" "$file"; then
-            sed -i "s|\"$key\":[[:space:]]*\"[^\"]*\"|\"$key\": \"$value\"|" "$file"
-        else
-            # This is a simplistic approach and might break with complex JSON
-            # Insert before the closing brace
-            sed -i "s|}|,\n  \"$key\": \"$value\"\n}|" "$file"
-        fi
-    fi
-}
-
 # Create JSON config file if it doesn't exist or if we're not in update mode
 if [ ! -f "$JSON_CONFIG" ] || [ "$UPDATE_MODE" = false ]; then
     echo "Creating JSON config file..."
@@ -153,77 +110,75 @@ if [ -f "$ENV_FILE" ]; then
     source "$ENV_FILE"
 fi
 
-# Detect Node.js install directory - this is where another fix is applied
-echo "Detecting Node.js installation..."
-NODE_INSTALL_DIR=""
-
-# First try nvm path
-if [ -d "$HOME/.nvm" ]; then
-    echo "Found nvm installation at $HOME/.nvm"
-    NODE_INSTALL_DIR=$(dirname "$(which node)" 2>/dev/null || echo "")
-    if [ -n "$NODE_INSTALL_DIR" ]; then
-        echo -e "${GREEN}Detected Node.js at $NODE_INSTALL_DIR via nvm${NC}"
-    fi
-fi
-
-# Try standard paths if nvm didn't work
-if [ -z "$NODE_INSTALL_DIR" ]; then
-    for path in "/usr/local/bin" "/usr/bin" "$HOME/.local/bin"; do
-        if [ -x "$path/node" ]; then
-            NODE_INSTALL_DIR="$path"
-            echo -e "${GREEN}Detected Node.js at $NODE_INSTALL_DIR${NC}"
-            break
-        fi
-    done
-fi
-
-# If still not found, check npm path
-if [ -z "$NODE_INSTALL_DIR" ] && command -v npm &> /dev/null; then
-    NPM_PATH=$(which npm)
-    NODE_INSTALL_DIR=$(dirname "$NPM_PATH")
-    echo -e "${GREEN}Detected Node.js directory at $NODE_INSTALL_DIR based on npm location${NC}"
-fi
-
-# If still not found, ask user
-if [ -z "$NODE_INSTALL_DIR" ]; then
-    echo -e "${YELLOW}Could not automatically detect Node.js install directory.${NC}"
+# Check WSL version
+echo "Checking WSL version..."
+WSL_VERSION=$(uname -r | grep -o "WSL2" || echo "WSL1")
+if [[ "$WSL_VERSION" == "WSL1" ]]; then
+    echo -e "${YELLOW}WARNING: You appear to be running WSL 1, but WSL 2 is recommended.${NC}"
+    echo "The script will continue, but some features may not work correctly."
+    echo "For best results, consider upgrading to WSL 2 using these commands in PowerShell:"
+    echo "  wsl --set-default-version 2"
+    echo "  wsl --set-version Ubuntu 2"
     
-    # Check if node is installed at all
-    if ! command -v node &> /dev/null; then
-        echo -e "${RED}Node.js does not appear to be installed.${NC}"
-        echo "Please install Node.js first. You can do this by running:"
-        echo "  sudo apt update"
-        echo "  sudo apt install nodejs npm"
-        echo "OR by installing nvm (recommended):"
-        echo "  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash"
-        echo "  nvm install --lts"
+    # Ask to continue
+    read -p "Continue with WSL 1? (y/n): " continue_wsl1
+    if [[ ! $continue_wsl1 =~ ^[Yy]$ ]]; then
+        echo "Setup aborted. Please upgrade to WSL 2 and try again."
         exit 1
     fi
-    
-    # If node is installed but we couldn't find the directory, ask user
-    echo "Please enter the directory where Node.js is installed (e.g., /usr/local/bin):"
-    read -r NODE_INSTALL_DIR
-    
-    if [ ! -d "$NODE_INSTALL_DIR" ]; then
-        echo -e "${RED}Directory $NODE_INSTALL_DIR does not exist.${NC}"
-        exit 1
-    fi
+else
+    echo -e "${GREEN}WSL 2 detected. Proceeding with setup...${NC}"
 fi
 
-echo -e "${GREEN}Using Node.js installation directory: $NODE_INSTALL_DIR${NC}"
+# Verify NVM is installed and load it
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
-# Check if npm is installed
-if ! command -v npm &> /dev/null; then
-    echo -e "${RED}npm is not installed. Please run the developer tools script first.${NC}"
+if ! command -v nvm &>/dev/null; then
+    echo -e "${YELLOW}NVM not detected. Running Node.js NVM installation script...${NC}"
+    
+    # Check if the Node.js NVM install script exists
+    NVM_SCRIPT="$SCRIPT_DIR/node-nvm-install.sh"
+    if [ ! -f "$NVM_SCRIPT" ]; then
+        echo -e "${RED}Node.js NVM installation script not found at $NVM_SCRIPT${NC}"
+        echo "Please ensure the script exists and is executable."
+        exit 1
+    fi
+
+    # Make sure the script is executable
+    chmod +x "$NVM_SCRIPT"
+
+    # Run the Node.js NVM installation script
+    if [ "$UPDATE_MODE" = true ]; then
+        "$NVM_SCRIPT" --update
+    else
+        "$NVM_SCRIPT"
+    fi
+
+    # Reload NVM
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+else
+    echo -e "${GREEN}NVM detected. Using existing installation.${NC}"
+fi
+
+# Verify Node.js installation
+if ! command -v node &>/dev/null; then
+    echo -e "${RED}Node.js is not available in the current shell session.${NC}"
+    echo "Please make sure NVM is properly loaded."
     exit 1
 fi
 
-# Check if anthropic API key is set
-if [ -z "$ANTHROPIC_API_KEY" ]; then
-    echo -e "${YELLOW}ANTHROPIC_API_KEY is not set in the environment.${NC}"
-    echo "You will need to set this variable before using Claude Code."
-    echo "Please run the credential management scripts after completing this setup."
+# Detect Node.js install directory
+NODE_INSTALL_DIR=$(dirname "$(which node)" 2>/dev/null)
+if [ -z "$NODE_INSTALL_DIR" ]; then
+    echo -e "${RED}Could not detect Node.js installation directory.${NC}"
+    exit 1
 fi
+
+echo -e "${GREEN}Using Node.js installation at $NODE_INSTALL_DIR${NC}"
+echo "Node.js version: $(node -v)"
+echo "npm version: $(npm -v)"
 
 # Get configuration from JSON
 INSTALLATION_METHOD=$(get_json_value "installation_method" "npm")
@@ -239,141 +194,36 @@ CREATE_TEMPLATES=$(get_json_value "create_project_templates" "true")
 CLAUDE_DIR="$HOME/projects/claude/claude-code"
 mkdir -p "$CLAUDE_DIR"
 
-# Clone the Claude Code repository if it exists
-if [ ! -d "$CLAUDE_DIR/repo" ]; then
-    echo "Checking for the Claude Code repository..."
-    if git ls-remote --exit-code https://github.com/anthropics/claude-code.git &> /dev/null; then
-        echo "Cloning the Claude Code repository..."
-        git clone https://github.com/anthropics/claude-code.git "$CLAUDE_DIR/repo"
-    else
-        echo -e "${YELLOW}Claude Code repository not found or not publicly available.${NC}"
-        echo "Will use standalone installation approach instead."
-        mkdir -p "$CLAUDE_DIR/repo"
-    fi
-fi
+# Now install Claude Code using the NVM-managed Node.js
+echo -e "${BLUE}Installing Claude Code using NVM-managed Node.js...${NC}"
 
-# Create Claude Code installation script with fixes for WSL version and Node.js path
-echo "Creating Fixed Claude Code installation script..."
-cat > "$CLAUDE_DIR/install.sh" << EOL
-#!/bin/bash
-#
-# Claude Code Installation Script
-# This script installs Claude Code CLI with improved WSL and Node.js handling
-
-# Define colors for output
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[0;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
-
-echo -e "\${BLUE}Installing Claude Code CLI (Fixed Version)...\${NC}"
-
-# Skip WSL version check - we already did it in the main script
-echo "WSL version check bypassed."
-
-# Check if npm is installed
-if ! command -v npm &> /dev/null; then
-    echo -e "\${RED}npm is not installed. Please install Node.js and npm first.\${NC}"
-    exit 1
-fi
-
-# Use the detected Node.js install directory
-NODE_INSTALL_DIR="$NODE_INSTALL_DIR"
-echo "Using Node.js installation directory: \$NODE_INSTALL_DIR"
-
-# Determine the installation method
-INSTALLATION_METHOD="$INSTALLATION_METHOD"
-BINARY_URL="$BINARY_URL"
-
-if [ "\$INSTALLATION_METHOD" = "local" ] && [ -f ./repo/package.json ]; then
-    echo "Installing from local repository..."
-    cd ./repo
-    npm install
-    npm link
-    cd ..
-elif [ "\$INSTALLATION_METHOD" = "binary" ] && [ ! -z "\$BINARY_URL" ]; then
-    echo "Installing from binary URL: \$BINARY_URL..."
-    curl -L "\$BINARY_URL" -o ./claude-code-cli
-    chmod +x ./claude-code-cli
-    mkdir -p "\$HOME/bin"
-    mv ./claude-code-cli "\$HOME/bin/claude"
-else
-    echo "Installing from npm registry..."
-    if npm list -g claude-cli &> /dev/null; then
-        echo "Updating existing Claude Code installation..."
-        npm update -g claude-cli
-    else
-        echo "Installing Claude Code..."
-        # Use --force to avoid permission errors
-        npm install -g claude-cli --force
-    fi
-fi
+# Install Claude Code
+echo "Installing Claude Code CLI..."
+npm install -g @anthropic-ai/claude-code --quiet
 
 # Check if installation was successful
-if command -v claude &> /dev/null; then
-    echo -e "\${GREEN}Claude Code installed successfully!\${NC}"
-    echo "You can now use the 'claude' command to interact with Claude Code."
+if ! command -v claude &>/dev/null; then
+    echo -e "${RED}Claude Code installation failed.${NC}"
+    echo "Let's try an alternative approach..."
     
-    # Display Claude Code version
-    echo "Claude Code version:"
-    claude --version
-else
-    # Check if claude is in NODE_INSTALL_DIR even if it's not in PATH
-    if [ -x "\$NODE_INSTALL_DIR/claude" ]; then
-        echo -e "\${GREEN}Claude Code installed successfully at \$NODE_INSTALL_DIR/claude\${NC}"
-        echo "However, it may not be in your PATH."
-        echo "You can use it by running \$NODE_INSTALL_DIR/claude"
-        echo "Or add it to your PATH by adding this line to your ~/.bashrc file:"
-        echo "export PATH=\$NODE_INSTALL_DIR:\$PATH"
-        
-        # Add to PATH temporarily
-        export PATH=\$NODE_INSTALL_DIR:\$PATH
-        
-        # Display Claude Code version
-        echo "Claude Code version:"
-        claude --version
-    else
-        echo -e "\${RED}Claude Code installation failed.\${NC}"
-        echo "Please check the installation logs and try again."
+    # Alternative installation approach
+    echo "Trying alternative installation with npm..."
+    npm install -g @anthropic-ai/claude-code --prefer-offline --no-audit --no-fund
+    
+    # Check again
+    if ! command -v claude &>/dev/null; then
+        echo -e "${RED}All installation attempts failed.${NC}"
+        echo "Please check npm logs for more details."
         exit 1
     fi
 fi
 
-# Create configuration directory
-mkdir -p ~/.claude
+# Display Claude Code version
+CLAUDE_VERSION=$(claude --version 2>/dev/null || echo "Unknown")
+echo -e "${GREEN}Claude Code installed successfully!${NC}"
+echo "Claude Code version: $CLAUDE_VERSION"
 
-# Add completion for claude command if not already present
-if [ -f ~/.zshrc ] && ! grep -q "claude completion" ~/.zshrc; then
-    echo "Adding Claude Code completion to zsh..."
-    echo '# Claude Code completion' >> ~/.zshrc
-    echo 'if command -v claude &> /dev/null; then' >> ~/.zshrc
-    echo '  eval "\$(claude completion zsh)"' >> ~/.zshrc
-    echo 'fi' >> ~/.zshrc
-fi
-
-if ! grep -q "claude completion" ~/.bashrc; then
-    echo "Adding Claude Code completion to bash..."
-    echo '# Claude Code completion' >> ~/.bashrc
-    echo 'if command -v claude &> /dev/null; then' >> ~/.bashrc
-    echo '  eval "\$(claude completion bash)"' >> ~/.bashrc
-    echo 'fi' >> ~/.bashrc
-fi
-
-# Display instructions for setting up API key
-echo ""
-echo -e "\${YELLOW}Next Steps:\${NC}"
-echo "Make sure your ANTHROPIC_API_KEY environment variable is set."
-echo "You may need to run the credential management scripts to set up this variable."
-echo ""
-echo "Once your API key is set, you can use Claude Code by navigating to your project directory and running:"
-echo "  claude"
-EOL
-
-# Make the installation script executable
-chmod +x "$CLAUDE_DIR/install.sh"
-
-# Create Claude Code configuration script (unchanged)
+# Create Claude Code configuration script
 echo "Creating Claude Code configuration script..."
 cat > "$CLAUDE_DIR/configure.sh" << EOL
 #!/bin/bash
@@ -389,6 +239,10 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo -e "\${BLUE}Configuring Claude Code CLI...\${NC}"
+
+# Load NVM and Node.js
+export NVM_DIR="\$HOME/.nvm"
+[ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
 
 # Check if Claude Code is installed
 if ! command -v claude &> /dev/null; then
@@ -486,8 +340,6 @@ echo "  - Log level: \$LOG_LEVEL"
 echo "  - Log file: ~/.claude/logs/claude.log"
 echo ""
 echo "You can modify these settings by editing the configuration file at \$CONFIG_FILE."
-echo "Or you can update settings in the config JSON file at $JSON_CONFIG and rerun setup."
-echo "Configuration changes will take effect the next time you start Claude Code."
 
 # Add custom commands
 SETUP_ALIASES="$SETUP_ALIASES"
@@ -547,14 +399,18 @@ EOL
 # Make the configuration script executable
 chmod +x "$CLAUDE_DIR/configure.sh"
 
-# Create a wrapper script for Claude Code (unchanged)
+# Create a wrapper script for Claude Code
 echo "Creating Claude Code wrapper script..."
 mkdir -p "$HOME/bin"
 cat > "$HOME/bin/claudecode" << EOL
 #!/bin/bash
 #
 # Claude Code Wrapper Script
-# This script runs Claude Code with the appropriate environment variables
+# This script runs Claude Code with the appropriate environment variables and NVM
+
+# Load NVM and Node.js
+export NVM_DIR="\$HOME/.nvm"
+[ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
 
 # Check if API key is set
 if [ -z "\$ANTHROPIC_API_KEY" ]; then
@@ -565,12 +421,6 @@ fi
 # Get environment type
 ENV_TYPE=\${ENV_TYPE:-development}
 echo "Running Claude Code in \$ENV_TYPE environment..."
-
-# Make sure node directory is in the path
-if [ -d "$NODE_INSTALL_DIR" ] && [[ ":$PATH:" != *":$NODE_INSTALL_DIR:"* ]]; then
-    export PATH="$NODE_INSTALL_DIR:$PATH"
-    echo "Added Node.js directory to PATH: $NODE_INSTALL_DIR"
-fi
 
 # Run Claude Code
 claude "\$@"
@@ -592,35 +442,12 @@ if [ -f ~/.zshrc ] && ! grep -q "export PATH=\$HOME/bin:\$PATH" ~/.zshrc; then
     echo "export PATH=\$HOME/bin:\$PATH" >> ~/.zshrc
 fi
 
-# Add Node.js directory to PATH if not already there
-if [ -n "$NODE_INSTALL_DIR" ] && ! grep -q "export PATH=$NODE_INSTALL_DIR:\$PATH" ~/.bashrc; then
-    echo "Adding Node.js directory to PATH in .bashrc..."
-    echo "# Add Node.js directory to PATH" >> ~/.bashrc
-    echo "export PATH=$NODE_INSTALL_DIR:\$PATH" >> ~/.bashrc
-fi
+# Create configuration directly
+echo "Setting up Claude Code configuration..."
+mkdir -p ~/.claude/logs
+CONFIG_FILE=~/.claude/config.json
 
-if [ -f ~/.zshrc ] && [ -n "$NODE_INSTALL_DIR" ] && ! grep -q "export PATH=$NODE_INSTALL_DIR:\$PATH" ~/.zshrc; then
-    echo "Adding Node.js directory to PATH in .zshrc..."
-    echo "# Add Node.js directory to PATH" >> ~/.zshrc
-    echo "export PATH=$NODE_INSTALL_DIR:\$PATH" >> ~/.zshrc
-fi
-
-# Run the installation script
-echo "Running Fixed Claude Code installation script..."
-cd "$CLAUDE_DIR"
-./install.sh
-
-# Check if installation was successful
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}Claude Code installation successful!${NC}"
-    # Run configuration script non-interactively
-    echo "Running configuration script..."
-    
-    # Create configuration file directly
-    mkdir -p ~/.claude/logs
-    CONFIG_FILE=~/.claude/config.json
-    
-    cat > "$CONFIG_FILE" << EOJSON
+cat > "$CONFIG_FILE" << EOJSON
 {
   "model": "$DEFAULT_MODEL",
   "temperature": $TEMPERATURE,
@@ -644,16 +471,16 @@ if [ $? -eq 0 ]; then
   "openaiCompatibilityMode": false
 }
 EOJSON
+
+echo -e "${GREEN}Configuration file created at $CONFIG_FILE${NC}"
+
+# Add custom commands if enabled
+if [[ $SETUP_ALIASES =~ ^(true|yes|y|1)$ ]]; then
+    # Create commands directory
+    mkdir -p ~/.claude/commands
     
-    echo -e "${GREEN}Configuration file created at $CONFIG_FILE${NC}"
-    
-    # Add custom commands if enabled
-    if [[ $SETUP_ALIASES =~ ^(true|yes|y|1)$ ]]; then
-        # Create commands directory
-        mkdir -p ~/.claude/commands
-        
-        # Create example commands
-        cat > ~/.claude/commands/analyze-repo.md << EOMD
+    # Create example commands
+    cat > ~/.claude/commands/analyze-repo.md << EOMD
 # Analyze Repository
 
 Analyze the current repository and provide insights:
@@ -664,7 +491,7 @@ Analyze the current repository and provide insights:
 4. Recommend testing strategies
 EOMD
 
-        cat > ~/.claude/commands/create-api.md << EOMD
+    cat > ~/.claude/commands/create-api.md << EOMD
 # Create API
 
 Create a RESTful API with the following:
@@ -676,7 +503,7 @@ Create a RESTful API with the following:
 5. Write tests for each endpoint
 EOMD
 
-        cat > ~/.claude/commands/optimize.md << EOMD
+    cat > ~/.claude/commands/optimize.md << EOMD
 # Optimize Code
 
 Analyze and optimize the provided code:
@@ -687,12 +514,7 @@ Analyze and optimize the provided code:
 4. Suggest better algorithms or data structures
 EOMD
 
-        echo -e "${GREEN}Custom commands created in ~/.claude/commands.${NC}"
-    fi
-else
-    echo -e "${RED}Claude Code installation failed.${NC}"
-    echo "Please check the installation logs and try again."
-    exit 1
+    echo -e "${GREEN}Custom commands created in ~/.claude/commands.${NC}"
 fi
 
 # Create project templates if enabled
@@ -752,7 +574,7 @@ fi
 mkdir -p "$HOME/.claude"
 touch "$HOME/.claude/.claude_setup_complete"
 
-echo -e "${GREEN}Claude Code setup complete!${NC}"
+echo -e "${GREEN}Claude Code setup with NVM complete!${NC}"
 echo ""
 echo -e "${YELLOW}Next Steps:${NC}"
 echo "1. Run the credential management scripts to set up your API key:"
@@ -762,8 +584,8 @@ echo ""
 echo "2. Once your API key is set, you can use Claude Code by navigating to your project directory and running:"
 echo "   claudecode"
 echo ""
-echo "3. If you want to create a new Claude Code project, you can use the template at:"
-echo "   ~/projects/claude/template"
+echo "3. If you want to use Claude Code in a new shell session, make sure to source your shell configuration:"
+echo "   source ~/.bashrc"
 echo ""
 echo "4. For more information, see the Claude Code documentation at:"
 echo "   https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview"
@@ -771,10 +593,10 @@ echo "   https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overvie
 # Function to be used when script is sourced by the main setup
 claude_setup_status() {
     if [[ -f "$HOME/.claude/.claude_setup_complete" ]]; then
-        echo "Claude Code: Installed and configured"
+        echo "Claude Code with NVM: Installed and configured"
         return 0
     else
-        echo "Claude Code: Not configured"
+        echo "Claude Code with NVM: Not configured"
         return 1
     fi
 }

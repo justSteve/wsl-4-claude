@@ -24,9 +24,47 @@ This project provides a standardized, well-tested WSL environment specifically d
 - Windows 10 version 2004+ or Windows 11
 - Admin access to your machine
 - An Anthropic account with Claude API access
-- Python 3.6 or higher
 
-### Installation
+### Installing Claude Code with NVM (Recommended)
+
+If you're experiencing issues with Claude Code installation or conflicts between Windows and WSL Node.js, use our simplified NVM-based installer:
+
+1. Clone this repository on your Windows machine:
+
+   ```
+   git clone https://github.com/yourusername/wsl-4-claude.git
+   cd wsl-4-claude
+   ```
+
+2. Run the PowerShell installer script as Administrator:
+
+   ```powershell
+   .\run-wsl-install.ps1
+   ```
+
+This script will:
+- Check if WSL is installed (and help you install it if needed)
+- Copy the installer script to your WSL environment
+- Run the installer inside WSL
+- Install Node.js using Node Version Manager (NVM)
+- Install Claude Code using the NVM-managed Node.js
+
+After installation completes, you can use Claude Code in WSL by:
+
+```bash
+# Open WSL
+wsl
+
+# Set your API key
+export ANTHROPIC_API_KEY=your_api_key_here
+
+# Run Claude Code
+claudecode
+```
+
+## Full Environment Setup
+
+For a complete WSL environment setup beyond just Claude Code:
 
 1. Clone this repository:
 
@@ -51,43 +89,32 @@ This project provides a standardized, well-tested WSL environment specifically d
 
 4. Follow the on-screen prompts to complete the installation.
 
-## Configuration
+## Troubleshooting Claude Code
 
-The project uses a secure configuration approach that separates sensitive information from the code:
+If you're experiencing issues with Claude Code installation in WSL:
 
-1. **Secrets Management**: All sensitive information is stored in `~/secrets/secrets.json`
-2. **Configuration Generation**: Python scripts generate the necessary config files
-3. **Logging**: All operations are logged for easy troubleshooting
+1. **Check Node.js Environment**: Ensure Node.js is properly installed in WSL (not using Windows Node.js)
+   ```bash
+   which node
+   which npm
+   ```
+   These should point to Linux paths (e.g., `/usr/bin/node`) not Windows paths (`/mnt/c/...`)
 
-### Managing Secrets
+2. **Path Conflicts**: Windows Node.js might be in your WSL PATH, causing conflicts
+   ```bash
+   echo $PATH
+   ```
+   Look for any `/mnt/c/` paths related to Node.js
 
-You can update your secrets:
+3. **Use the NVM Method**: Our NVM-based installation script resolves most common issues by ensuring a clean Node.js installation isolated from Windows
 
-```bash
-python3 scripts/python/generate_config.py --update-secret github_token your-new-token
-```
-
-Or run the interactive configuration:
-
-```bash
-python3 scripts/python/generate_config.py --interactive
-```
-
-### Environment Types
-
-The system supports different environment types (dev/prod):
-
-```bash
-# Configure development environment
-./scripts/06-lx-credentials.sh dev
-
-# Configure production environment
-./scripts/06-lx-credentials.sh prod
-```
+4. **Common Errors**:
+   - If npm tries to install to Windows paths (`C:\Users\...`), this indicates path conflicts
+   - If you see "invalid argument" errors, this is often due to WSL trying to use Windows Node.js
 
 ## Documentation
 
-See the `scripts/python/README.md` file for detailed information about the configuration system.
+See the documentation files in the `docs` directory for detailed information about the setup process, configuration options, and troubleshooting tips.
 
 ## Contributing
 
